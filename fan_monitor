@@ -1,0 +1,76 @@
+#!/bin/sh
+# Fan monitor untuk STB HG680P - GPIO 507
+# Daya fan dari sumber eksternal, dikontrol via MOSFET IRFZ44N
+
+GPIO=507
+INTERVAL=20
+
+FANLOW=0
+FANMID=0
+FANHI=1
+
+CPU_HI=52000
+CPU_MID=48000
+CPU_LOW=40000
+
+cur_fan=0
+new_fan="$FANHI"
+
+# Inisialisasi GPIO
+if [ ! -d /sys/class/gpio/gpio$GPIO ]; then
+    echo "$GPIO" > /sys/class/gpio/export
+    sleep 0.2
+fi
+echo out > /sys/class/gpio/gpio$GPIO/direction
+
+fan_set() {
+    local pfan
+    cur_fan=$1
+
+    if [ "$1" -eq $FANLOW ]; then
+        pfan="50%"
+    elif [ "$1" -eq $FANMID ]; then
+        pfan="75%"
+    else
+        pfan="100%"
+    fi
+
+    logger -t FAN_MONITOR "Setting Fan to $pfan"
+    echo "$1" > /sys/class/gpio/gpio$GPIO/value
+}
+
+trap "{ logger -t FAN_MONITOR 'Fan monitor exiting'; fan_set $FANHI; logger -t FAN_MONITOR 'Fan forced ON as precaution'; exit; }" SIGINT SIGTERM
+
+get_hwmon_path() {
+    for hwmon in /sys/class/hwmon/hwmon*/temp1_input; do
+        if grep -iq "cpu" "$(dirname "$hwmon")/name" 2>/dev/null; then
+            echo "$hwmon"
+            return
+        fi
+    done
+    echo "/sys/class/hwmon/hwmon0/temp1_input"  # fallback
+}
+
+TEMP_SENSOR=$(get_hwmon_path)
+logger -t FAN_MONITOR "Menggunakan sensor suhu: $TEMP_SENSOR"
+
+while true; do
+    if [ "$new_fan" -ne "$cur_fan" ]; then
+        fan_set "$new_fan"
+    fi
+
+    cpu=$(cat "$TEMP_SENSOR")
+    cpu_c=$(($cpu / 1000))
+
+    logger -t FAN_MONITOR "CPU Temp: ${cpu_c}°C | Fan: $cur_fan"
+
+    if [ "$cpu" -le $CPU_LOW ]; then
+        new_fan="$FANLOW"
+    elif [ "$cpu" -le $CPU_MID ]; then
+        new_fan="$FANMID"
+    else
+        new_fan="$FANHI"
+    fi
+
+    sleep $INTERVAL
+done

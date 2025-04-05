@@ -1,0 +1,14 @@
+[Unit]
+Description=Thermal Pilot - Smart Fan Monitor Service
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/thermal-pilot/fan_monitor
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
