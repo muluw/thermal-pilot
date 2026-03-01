@@ -4,7 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/thermal-pilot/fan_monitor
+ExecStart=/usr/local/bin/fan_monitor
 Restart=always
 RestartSec=5
 StandardOutput=journal
